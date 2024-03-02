@@ -10,13 +10,14 @@ import (
 	"github.com/containrrr/watchtower/pkg/session"
 	"github.com/containrrr/watchtower/pkg/sorter"
 	"github.com/containrrr/watchtower/pkg/types"
+	t "github.com/containrrr/watchtower/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
 
 // Update looks at the running Docker containers to see if any of the images
 // used to start those containers have been updated. If a change is detected in
 // any of the images, the associated containers are stopped and restarted with
-// the new image.
+// the new image, unless DeferDays was set and the image has not yet met that threshold.
 func Update(client container.Client, params types.UpdateParams) (types.Report, error) {
 	log.Debug("Checking containers for updated images")
 	progress := &session.Progress{}
@@ -38,16 +39,17 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 		stale, newestImage, err := client.IsContainerStale(targetContainer, params)
 		shouldUpdate := stale && !params.NoRestart && !targetContainer.IsMonitorOnly(params)
 		imageUpdateDeferred := false
-		imageAgeDays := 0
+		imageAgeDays := 0.0
 		if err == nil && shouldUpdate {
 			// Check to make sure we have all the necessary information for recreating the container, including ImageInfo
 			err = targetContainer.VerifyConfiguration()
 			if err == nil {
 				if params.DeferDays > 0 {
-					imageAgeDays, imageErr := getImageAgeDays(targetContainer.ImageInfo().Created)
+					imageAgeDays, imageErr := getImageAgeDays(newestImage.Created)
 					err = imageErr
 					if err == nil {
-						imageUpdateDeferred = imageAgeDays < params.DeferDays
+						imageUpdateDeferred = imageAgeDays < float64(params.DeferDays)
+						log.Debugf("Image age check for image %#v: imageAgeDays %.2f; DeferDays %d; imageUpdateDeferred %v", targetContainer.ImageInfo(), imageAgeDays, params.DeferDays, imageUpdateDeferred)
 					}
 				}
 			} else if log.IsLevelEnabled(log.TraceLevel) {
@@ -67,13 +69,13 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 			staleCheckFailed++
 			progress.AddSkipped(targetContainer, err)
 		} else if imageUpdateDeferred {
-			log.Infof("New image found for %s that was created %d day(s) ago but update deferred until %d day(s) after creation", targetContainer.Name(), imageAgeDays, params.DeferDays)
+			log.Infof("New image found for %s that was created %.2f day(s) ago but update deferred until %d day(s) after creation", targetContainer.Name(), imageAgeDays, params.DeferDays)
 			// technically the container is stale but we set it to false here because it is this stale flag that tells downstream methods whether to perform the update
 			stale = false
-			progress.AddScanned(targetContainer, newestImage)
+			progress.AddScanned(targetContainer, t.ImageID(newestImage.ID))
 			progress.MarkDeferred(targetContainer.ID())
 		} else {
-			progress.AddScanned(targetContainer, newestImage)
+			progress.AddScanned(targetContainer, t.ImageID(newestImage.ID))
 		}
 		containers[i].SetStale(stale)
 
@@ -291,7 +293,7 @@ func linkedContainerMarkedForRestart(links []string, containers []types.Containe
 // Finds the difference between now and a given date, in full days. Input date is expected to originate
 // from an image's Created attribute which will follow ISO 3339/8601 format.
 // Reference: https://docs.docker.com/engine/api/v1.43/#tag/Image/operation/ImageInspect
-func getImageAgeDays(imageCreatedDateTime string) (int, error) {
+func getImageAgeDays(imageCreatedDateTime string) (float64, error) {
 	imageCreatedDate, error := time.Parse(time.RFC3339Nano, imageCreatedDateTime)
 
 	if error != nil {
@@ -299,6 +301,6 @@ func getImageAgeDays(imageCreatedDateTime string) (int, error) {
 		return -1, error
 	}
 
-	return int(time.Since(imageCreatedDate).Hours() / 24), nil
+	return (time.Since(imageCreatedDate).Hours() / 24), nil
 
 }
