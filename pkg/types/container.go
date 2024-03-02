@@ -7,8 +7,14 @@ import (
 	dc "github.com/docker/docker/api/types/container"
 )
 
-// ImageID is a hash string representing a container image
+// ImageID is a hash string representing a container image's ID
 type ImageID string
+
+// ImageID is a JSON string representing a container image
+type Image string
+
+// ImageInfo is the ImageInspect object representing an image
+type ImageInfo *types.ImageInspect
 
 // ContainerID is a hash string representing a container instance
 type ContainerID string
@@ -50,6 +56,7 @@ type Container interface {
 	Name() string
 	ImageID() ImageID
 	SafeImageID() ImageID
+	SafeImageInfo() ImageInfo
 	ImageName() string
 	Enabled() (bool, bool)
 	IsMonitorOnly(UpdateParams) bool

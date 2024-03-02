@@ -8,13 +8,13 @@ import (
 type Progress map[types.ContainerID]*ContainerStatus
 
 // UpdateFromContainer sets various status fields from their corresponding container equivalents
-func UpdateFromContainer(cont types.Container, newImage types.ImageID, state State) *ContainerStatus {
+func UpdateFromContainer(cont types.Container, newImageID types.ImageID, state State) *ContainerStatus {
 	return &ContainerStatus{
 		containerID:   cont.ID(),
 		containerName: cont.Name(),
 		imageName:     cont.ImageName(),
 		oldImage:      cont.SafeImageID(),
-		newImage:      newImage,
+		newImage:      newImageID,
 		state:         state,
 	}
 }
@@ -27,8 +27,8 @@ func (m Progress) AddSkipped(cont types.Container, err error) {
 }
 
 // AddScanned adds a container to the Progress with the state set as scanned
-func (m Progress) AddScanned(cont types.Container, newImage types.ImageID) {
-	m.Add(UpdateFromContainer(cont, newImage, ScannedState))
+func (m Progress) AddScanned(cont types.Container, newImageID types.ImageID) {
+	m.Add(UpdateFromContainer(cont, newImageID, ScannedState))
 }
 
 // UpdateFailed updates the containers passed, setting their state as failed with the supplied error

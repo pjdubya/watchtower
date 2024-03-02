@@ -98,6 +98,15 @@ func (c Container) SafeImageID() wt.ImageID {
 	return wt.ImageID(c.imageInfo.ID)
 }
 
+// SafeImageInfo returns ImageInfo object pointer of the Docker image that was used to start the container if available,
+// otherwise returns a nil indicating no such object is available
+func (c Container) SafeImageInfo() wt.ImageInfo {
+	if c.imageInfo == nil {
+		return nil
+	}
+	return c.imageInfo
+}
+
 // ImageName returns the name of the Docker image that was used to start the
 // container. If the original image was specified without a particular tag, the
 // "latest" tag is assumed.
